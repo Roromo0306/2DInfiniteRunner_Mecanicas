@@ -134,7 +134,13 @@ public class GameBootstrapper : MonoBehaviour
     void Update()
     {
         float dt = Time.deltaTime;
-        gameController.Update(dt);
-        playerController.UpdateController(dt);
+        if (gameController != null) gameController.Update(dt);
+
+      
+
+        if (obstaclePoolManager != null && gameController != null)
+        {
+            obstaclePoolManager.SyncWithStore(gameController.GetObstacleStore());
+        }
     }
 }

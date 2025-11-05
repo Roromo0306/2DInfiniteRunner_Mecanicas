@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13bdbf99ab39abb409ea0a9f20ae0f8b, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: 
-  initialObstacleSpawnInterval: 1.2
-  minSpawnInterval: 0.4
+  initialObstacleSpawnInterval: 6
+  minSpawnInterval: 3
   difficultyRampPerMinute: 0.1
   gameSpeed: 5
   pointsPerSecond: 1
