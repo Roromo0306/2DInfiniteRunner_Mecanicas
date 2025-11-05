@@ -16,4 +16,4 @@ MonoBehaviour:
   minSpawnInterval: 3
   difficultyRampPerMinute: 0.1
   gameSpeed: 5
-  pointsPerSecond: 1
+  pointsPerSecond: 100

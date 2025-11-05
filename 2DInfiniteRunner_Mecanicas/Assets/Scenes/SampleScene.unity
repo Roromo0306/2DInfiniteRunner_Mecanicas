@@ -1513,6 +1513,17 @@ MonoBehaviour:
     m_Bits: 8
   groundCheck: {fileID: 426891693}
   groundCheckRadius: 0.12
+--- !u!114 &1498803485 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4901382316846580749, guid: dee64ce3bd380e74286a1d75b0c26c9e, type: 3}
+  m_PrefabInstance: {fileID: 7540992726283660185}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 754851382}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2986ef1a970506b4da32ae212d64b3fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1514131009
 GameObject:
   m_ObjectHideFlags: 0
@@ -1716,9 +1727,11 @@ MonoBehaviour:
   powerUps:
   - {fileID: 11400000, guid: 6ab3a8a60c9c020479b07bba56bca244, type: 2}
   - {fileID: 11400000, guid: f258c1db568e5184586ecde5380f9edd, type: 2}
+  playerViewInScene: {fileID: 1498803485}
+  obstaclePrefab: {fileID: 3692786215319236510, guid: 9255eed7afc0a1b44a507d87537762f5, type: 3}
+  obstaclePoolManager: {fileID: 463105619}
   audioSource: {fileID: 1498803477}
   worldLeftX: -12
-  obstaclePrefab: {fileID: 0}
 --- !u!4 &1756950851
 Transform:
   m_ObjectHideFlags: 0

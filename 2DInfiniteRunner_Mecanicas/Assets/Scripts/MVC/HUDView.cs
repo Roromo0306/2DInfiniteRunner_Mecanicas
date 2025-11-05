@@ -47,7 +47,7 @@ namespace RunnerGame.MVC.View
         {
             currentTime = newTime;
             if (timeText)
-                timeText.text = $"Time: {newTime:0.0}s";
+                timeText.text = FormatTimeMMSS(newTime);
         }
 
         public void UpdatePowerUp(float ratio)
@@ -91,6 +91,52 @@ namespace RunnerGame.MVC.View
                     UpdateTime((float)data);
                     break;
             }
+        }
+
+        private void OnEnable()
+        {
+            GameEvents.OnScoreChanged += OnScoreChanged;
+            GameEvents.OnTimeUpdated += OnTimeUpdated;
+        }
+
+        private void OnDisable()
+        {
+            GameEvents.OnScoreChanged -= OnScoreChanged;
+            GameEvents.OnTimeUpdated -= OnTimeUpdated;
+        }
+
+        private void OnScoreChanged(int newScore)
+        {
+            if (scoreText != null) scoreText.text = $"Score: {newScore}";
+            Debug.Log($"[HUD] Score updated -> {newScore}");
+        }
+        private string FormatTimeMMSS(float elapsed)
+        {
+            int minutes = Mathf.FloorToInt(elapsed / 60f);
+            int seconds = Mathf.FloorToInt(elapsed % 60f);
+            return string.Format("{0:00}:{1:00}", minutes, seconds);
+        }
+        // ÚNICO método OnTimeUpdated (formatea mm:ss)
+       private void OnTimeUpdated(float elapsed)
+        {
+            Debug.Log($"[HUDView] OnTimeUpdated called with elapsed={elapsed}");
+            if (timeText == null) return;
+            timeText.text = FormatTimeMMSS(elapsed); // o lo que tengas
+        }
+        
+
+        // Método de prueba: ejecuta desde el Inspector (clic en los tres puntos del componente -> TestShowTime)
+        [ContextMenu("TestShowTime")]
+        public void TestShowTime()
+        {
+            if (timeText == null)
+            {
+                Debug.LogWarning("[HUDView] TestShowTime: timeText is null — asigna el Text en el inspector.");
+                return;
+            }
+            timeText.gameObject.SetActive(true);
+            timeText.text = "TEST " + FormatTimeMMSS(Time.time);
+            Debug.Log("[HUDView] TestShowTime ejecutado. Revisa el texto en pantalla.");
         }
     }
 }

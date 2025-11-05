@@ -1,3 +1,4 @@
+// Assets/_Project/Scripts/MVC/Controller/PlayerController.cs
 using UnityEngine;
 using RunnerGame.MVC.View;
 
@@ -22,22 +23,22 @@ namespace RunnerGame.MVC.Controller
         {
             rb = GetComponent<Rigidbody2D>();
             view = GetComponent<PlayerView>();
-            Debug.Log($"[PlayerController] Awake. rb? {(rb != null)}, view? {(view != null)}");
         }
 
         private void Start()
         {
-            Debug.Log($"[PlayerController] Start pos={transform.position}, rb.gravityScale={rb.gravityScale}, rb.bodyType={rb.bodyType}, rb.isKinematic={rb.isKinematic}");
             if (rb != null) rb.freezeRotation = true;
-            if (groundCheck == null) Debug.LogWarning("[PlayerController] groundCheck no asignado. Crea un child y asignalo en inspector.");
         }
 
         private void Update()
         {
-            // Input debug
+            UpdateController(Time.deltaTime);
+        }
+
+        public void UpdateController(float deltaTime)
+        {
             if (Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.Space))
             {
-                Debug.Log("[PlayerController] Input Jump detected. IsGrounded? " + IsGrounded());
                 TryJump();
             }
         }
@@ -49,18 +50,12 @@ namespace RunnerGame.MVC.Controller
                 rb.velocity = new Vector2(rb.velocity.x, jumpForce);
                 didDoubleJump = false;
                 view?.PlayJump();
-                Debug.Log("[PlayerController] Jump executed. rb.velocity=" + rb.velocity);
             }
             else if (canDoubleJump && !didDoubleJump)
             {
                 rb.velocity = new Vector2(rb.velocity.x, jumpForce);
                 didDoubleJump = true;
                 view?.PlayJump();
-                Debug.Log("[PlayerController] DoubleJump executed. rb.velocity=" + rb.velocity);
-            }
-            else
-            {
-                Debug.Log("[PlayerController] Jump attempted but not grounded and no double jump available.");
             }
         }
 
@@ -68,16 +63,10 @@ namespace RunnerGame.MVC.Controller
         {
             if (groundCheck == null)
             {
-                // fallback: pequeña raycast hacia abajo
                 RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, 0.11f, groundMask);
-                bool grounded = hit.collider != null;
-                Debug.DrawRay(transform.position, Vector3.down * 0.11f, grounded ? Color.green : Color.red, 0.5f);
-                return grounded;
+                return hit.collider != null;
             }
-
-            bool result = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask) != null;
-            Debug.DrawRay(groundCheck.position, Vector3.down * 0.02f, result ? Color.green : Color.red, 0.5f);
-            return result;
+            return Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask) != null;
         }
 
         public void SetDoubleJump(bool enabled)
@@ -88,7 +77,7 @@ namespace RunnerGame.MVC.Controller
 
         public void Kill()
         {
-            rb.velocity = Vector2.zero;
+            if (rb != null) rb.velocity = Vector2.zero;
             view?.PlayDeath();
             GameEvents.OnPlayerDied?.Invoke();
         }

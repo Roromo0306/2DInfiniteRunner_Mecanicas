@@ -1,146 +1,151 @@
-using RunnerGame.MVC.Controller;
-using RunnerGame.MVC.Model;
+// Assets/_Project/Scripts/Bootstrap/GameBootstrapper.cs
+using UnityEngine;
 using RunnerGame.MVC.View;
 using RunnerGame.Systems;
-using UnityEngine;
+using RunnerGame.MVC.Controller;
 
 public class GameBootstrapper : MonoBehaviour
 {
+    [Header("Config / Assets")]
     public GameConfigSO config;
     public PowerUpSO[] powerUps;
-    public AudioSource audioSource;
+
+    [Header("Scene refs (preferible asignar en Inspector)")]
+    public PlayerView playerViewInScene;        // arrastra Player (o su componente PlayerView)
+    public ObstacleView obstaclePrefab;         // asigna Prefab Obstacle
+    public PoolManager obstaclePoolManager;     // opcional: si ya lo creaste, arrástralo
+
+    [Header("Audio")]
+    public AudioSource audioSource;             // opcional (busca si no asignado)
+
+    [Header("World")]
     public float worldLeftX = -12f;
-    public ObstacleView obstaclePrefab;
+
+    // runtime
     IAudioService audioService;
     GameController gameController;
     PlayerController playerController;
-    PoolManager obstaclePoolManager;
-    PlayerView playerViewInScene;
 
     void Awake()
     {
-        // Mensaje inicial
-        Debug.Log("[Bootstrapper] Awake: inicializando...");
-
-        // 1) Config obligatorio
+        // 1) Validaciones básicas
         if (config == null)
         {
-            Debug.LogError("[Bootstrapper] GameConfigSO (config) no asignado en el Inspector. Crea y arrastra un asset en Bootstrapper.config.");
+            Debug.LogError("[Bootstrapper] GameConfigSO (config) no asignado en el Inspector. Asigna el asset y reinicia.");
+            enabled = false;
             return;
         }
 
-        // 2) AudioService: si no asignaste AudioSource, intenta obtener uno del mismo GameObject
+        // 2) AudioService: usa audioSource del inspector o busca uno en escena
         if (audioSource == null)
         {
-            audioSource = GetComponent<AudioSource>();
-            if (audioSource == null)
-            {
-                // intenta buscar cualquier AudioSource en la escena
-                audioSource = FindObjectOfType<AudioSource>();
-                if (audioSource != null)
-                    Debug.LogWarning("[Bootstrapper] audioSource no asignado. Se encontró y usará el primer AudioSource de la escena.");
-                else
-                    Debug.LogWarning("[Bootstrapper] audioSource no encontrado en escena. Si no asignas uno no habrá SFX.");
-            }
-            else
-            {
-                Debug.Log("[Bootstrapper] audioSource tomado del mismo GameObject del Bootstrapper.");
-            }
+            audioSource = GetComponent<AudioSource>() ?? FindObjectOfType<AudioSource>();
         }
-
         audioService = new AudioService(audioSource);
 
-        // 3) Spawn strategy
+        // 3) Crear GameController (clase POCO)
         var spawnStrategy = new DifficultyScalingStrategy();
         gameController = new GameController(config, spawnStrategy, worldLeftX);
 
-        // 4) PlayerController / PlayerView: si no arrastraste la vista, intenta Find
+        // 4) Asegurar PlayerView existe (si no está asignado, intentar buscar)
         if (playerViewInScene == null)
         {
-            playerViewInScene = FindObjectOfType<RunnerGame.MVC.View.PlayerView>();
-            if (playerViewInScene != null)
-                Debug.Log("[Bootstrapper] playerViewInScene no asignado en inspector — se encontró PlayerView en la escena.");
-            else
-                Debug.LogWarning("[Bootstrapper] playerViewInScene no encontrado. Asegúrate de tener un GameObject Player con PlayerView.");
-        }
-
-        // 5) Crear/obtener PlayerController: asumimos PlayerController es MonoBehaviour en el GameObject Player
-        if (playerViewInScene != null)
-        {
-            playerController = playerViewInScene.GetComponent<RunnerGame.MVC.Controller.PlayerController>();
-            if (playerController == null)
+            playerViewInScene = FindObjectOfType<PlayerView>();
+            if (playerViewInScene == null)
             {
-                Debug.LogWarning("[Bootstrapper] PlayerView existe pero no tiene PlayerController. Intentando AddComponent<PlayerController>()...");
-                playerController = playerViewInScene.gameObject.AddComponent<RunnerGame.MVC.Controller.PlayerController>();
+                Debug.LogError("[Bootstrapper] No se encontró PlayerView en la escena y no fue asignado en Inspector. Crea el Player (con PlayerView) o arrástralo al campo playerViewInScene.");
+                enabled = false;
+                return;
             }
         }
 
-        // 6) PoolManager (ObstaclePool): intenta usar referencia inspector, luego Find, luego crear
+        // 5) Asegurar PlayerController (componente) en el mismo GameObject que PlayerView
+        playerController = playerViewInScene.GetComponent<PlayerController>();
+        if (playerController == null)
+        {
+            // Añadimos el componente si no existía
+            playerController = playerViewInScene.gameObject.AddComponent<PlayerController>();
+        }
+
+        // 6) PoolManager: si no hay referencia en inspector, buscar/crear
         if (obstaclePoolManager == null)
         {
-            obstaclePoolManager = FindObjectOfType<RunnerGame.Systems.PoolManager>();
-            if (obstaclePoolManager != null)
+            obstaclePoolManager = FindObjectOfType<PoolManager>();
+            if (obstaclePoolManager == null)
             {
-                Debug.Log("[Bootstrapper] obstaclePoolManager asignado automáticamente con FindObjectOfType.");
-            }
-            else
-            {
-                Debug.LogWarning("[Bootstrapper] obstaclePoolManager no encontrado: se creará un GameObject ObstaclePool con PoolManager.");
                 var poolGO = new GameObject("ObstaclePool");
-                obstaclePoolManager = poolGO.AddComponent<RunnerGame.Systems.PoolManager>();
-
-                // Intentar asignar prefab automático desde Resources (si existe)
-                if (obstaclePrefab == null)
-                {
-                    var loaded = Resources.Load<RunnerGame.MVC.View.ObstacleView>("Prefabs/Obstacle");
-                    if (loaded != null)
-                    {
-                        obstaclePoolManager.SetObstaclePrefab(loaded);// método helper (ver nota más abajo)
-                        Debug.Log("[Bootstrapper] Obstacle prefab cargado desde Resources/Prefabs/Obstacle (colócalo ahí si quieres autoload).");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[Bootstrapper] No se encontró prefab en Resources/Prefabs/Obstacle. Asigna el Obstacle prefab en el PoolManager inspector.");
-                    }
-                }
+                obstaclePoolManager = poolGO.AddComponent<PoolManager>();
             }
         }
 
-        // 7) Inicialización final del playerModel/controller si todo ok
-        var playerModel = new RunnerGame.MVC.Model.PlayerModel();
-        if (playerController != null)
+        // 7) Asignar prefab al PoolManager (necesario). Si no hay prefab, error claro.
+        if (obstaclePrefab == null)
         {
-            // Si tu PlayerController tiene Initialize, llámalo; si no, intenta SetModel
-            var initMethod = playerController.GetType().GetMethod("Initialize");
-            if (initMethod != null)
-            {
-                initMethod.Invoke(playerController, new object[] { playerModel, playerViewInScene });
-                Debug.Log("[Bootstrapper] PlayerController.Initialize(...) invocado.");
-            }
-            else
-            {
-                Debug.Log("[Bootstrapper] PlayerController no tiene Initialize(). Se espera que gestione su propio model internamente.");
-            }
+            Debug.LogError("[Bootstrapper] obstaclePrefab no asignado. Arrastra Prefab 'Obstacle' al campo obstaclePrefab en el Bootstrapper.");
+            enabled = false;
+            return;
+        }
+        // intentamos asignar la referencia pública/serializada del pool
+        // (PoolManager debe exponer un campo público o serializado llamado 'obstaclePrefab' o método SetObstaclePrefab)
+        // Intentamos asignarlo por reflexión si el campo es privado serializado (fallback).
+        bool assigned = false;
+        var poolType = obstaclePoolManager.GetType();
+        var field = poolType.GetField("obstaclePrefab", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        if (field != null && field.FieldType == typeof(ObstacleView))
+        {
+            field.SetValue(obstaclePoolManager, obstaclePrefab);
+            assigned = true;
         }
         else
         {
-            Debug.LogWarning("[Bootstrapper] PlayerController sigue siendo null: crea un Player GameObject con PlayerController o asigna manualmente en el Inspector.");
+            // intentar propiedad pública
+            var prop = poolType.GetProperty("ObstaclePrefab", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (prop != null && prop.PropertyType == typeof(ObstacleView) && prop.CanWrite)
+            {
+                prop.SetValue(obstaclePoolManager, obstaclePrefab);
+                assigned = true;
+            }
         }
 
-        Debug.Log("[Bootstrapper] Awake: inicialización completada con estado:");
-        Debug.Log($"  config: {(config != null)}, audioSource: {(audioSource != null)}, playerView: {(playerViewInScene != null)}, poolManager: {(obstaclePoolManager != null)}");
+        if (!assigned)
+        {
+            Debug.LogWarning("[Bootstrapper] No se pudo asignar obstaclePrefab al PoolManager por reflexión. Asegúrate de que PoolManager tiene un campo serializado 'obstaclePrefab' o una propiedad pública 'ObstaclePrefab'. De todas formas, si PoolManager fue creado por ti en la escena, asigna manualmente el prefab en su Inspector.");
+        }
+
+        // 8) Inicializar posible UI/HUD si lo tienes vía eventos (no obligatorio aquí)
+
+        // 9) Inicialización completa
+        Debug.Log("[Bootstrapper] Inicialización completada correctamente.");
     }
 
     void Update()
     {
         float dt = Time.deltaTime;
+
+        // 1) Lógica principal (timer, score, spawns, etc.)
         if (gameController != null) gameController.Update(dt);
 
-      
+        // 2) Actualizar player controller (controlamos orden desde aquí)
+        if (playerController != null) playerController.UpdateController(dt);
 
+        // 3) Sincronizar vistas de obstáculos con datos
         if (obstaclePoolManager != null && gameController != null)
         {
-            obstaclePoolManager.SyncWithStore(gameController.GetObstacleStore());
+            // GameController debe exponer GetObstacleStore()
+            var storeMethod = typeof(GameController).GetMethod("GetObstacleStore");
+            if (storeMethod != null)
+            {
+                var store = storeMethod.Invoke(gameController, null);
+                if (store != null)
+                {
+                    // llamamos a SyncWithStore si existe
+                    var syncMethod = obstaclePoolManager.GetType().GetMethod("SyncWithStore");
+                    if (syncMethod != null)
+                    {
+                        syncMethod.Invoke(obstaclePoolManager, new object[] { store });
+                    }
+                }
+            }
         }
     }
 }
