@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using RunnerGame.MVC.View;
-using RunnerGame.MVC.Model; // Ajusta si tu ObstacleStoreSoA está en otro namespace
+using RunnerGame.MVC.Model;
 
 namespace RunnerGame.Systems
 {
@@ -18,6 +18,12 @@ namespace RunnerGame.Systems
         private void Awake()
         {
             if (poolParent == null) poolParent = this.transform;
+            // Si no hay prefab asignado, no intentar crear pool (evitar NRE)
+            if (obstaclePrefab == null)
+            {
+                Debug.LogWarning("[PoolManager] obstaclePrefab no asignado. Asigna el prefab en el Inspector o llama SetObstaclePrefab(prefab) por código antes de usar SyncWithStore.");
+                return;
+            }
             CreateInitialPool();
         }
 
@@ -27,20 +33,37 @@ namespace RunnerGame.Systems
             for (int i = 0; i < initialPoolSize; i++)
             {
                 var inst = Instantiate(obstaclePrefab, poolParent);
-                inst.Release(); // método de ObstacleView: desactiva y marca index -1
+                inst.Release(); // desactivar y marcar index -1
                 pool.Add(inst);
             }
         }
 
-        /// <summary>
-        /// Sincroniza las primeras store.count entradas con los primeros elementos del pool.
-        /// Llama a este método DESPUÉS de actualizar la lógica (MovementSystem.Update).
-        /// </summary>
+        // Nuevo: permite asignar el prefab por código antes de inicializar el pool
+        public void SetObstaclePrefab(ObstacleView prefab)
+        {
+            if (prefab == null)
+            {
+                Debug.LogError("[PoolManager] SetObstaclePrefab recibió null.");
+                return;
+            }
+
+            obstaclePrefab = prefab;
+            // si todavía no se ha inicializado el pool (pool vacío), inicializa ahora
+            if (pool == null || pool.Count == 0)
+            {
+                CreateInitialPool();
+            }
+        }
+
         public void SyncWithStore(ObstacleStoreSoA store)
         {
             if (store == null) return;
+            if (obstaclePrefab == null)
+            {
+                // nada que hacer si no tenemos prefab
+                return;
+            }
 
-            // Si hay más obstáculos que objetos disponibles, expandimos
             if (store.count > pool.Count)
             {
                 ExpandPool(store.count - pool.Count);
@@ -56,7 +79,6 @@ namespace RunnerGame.Systems
                 view.SyncToData(pos, width);
             }
 
-            // Desactivar el resto del pool
             for (; i < pool.Count; i++)
             {
                 pool[i].Release();
@@ -73,7 +95,6 @@ namespace RunnerGame.Systems
             }
         }
 
-        // (Opcional) método para obtener un view por índice si quieres control adicional
         public ObstacleView GetViewAt(int index)
         {
             if (index < 0 || index >= pool.Count) return null;
