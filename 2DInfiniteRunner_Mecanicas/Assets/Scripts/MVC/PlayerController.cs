@@ -1,55 +1,40 @@
 using UnityEngine;
+using RunnerGame.MVC.Model;
+using RunnerGame.MVC.View;
 
-public class PlayerModel
+namespace RunnerGame.MVC.Controller
 {
-    public float x = -3f;
-    public float y = 0f;
-    public float width = 0.8f;
-    public float height = 1.6f;
-    public bool isAlive = true;
-    public bool hasPowerUp = false;
-}
-
-public class PlayerController
-{
-    PlayerModel model;
-    float jumpVelocity = 7f;
-    float verticalSpeed = 0f;
-    float gravity = -20f;
-    float groundY = 0f;
-    public PlayerController(PlayerModel model) { this.model = model; }
-
-    public void Update(float dt, ObstacleStoreSoA obstacles)
+    public class PlayerController : MonoBehaviour
     {
-        // simple input (hook via DI to input system, here pseudo)
-        if (Input.GetButtonDown("Jump") && Mathf.Abs(model.y - groundY) < 0.01f)
+        private PlayerModel model;
+        private PlayerView view;
+
+        public void Initialize(PlayerModel model, PlayerView view)
         {
-            verticalSpeed = jumpVelocity;
+            this.model = model;
+            this.view = view;
         }
 
-        verticalSpeed += gravity * dt;
-        model.y += verticalSpeed * dt;
-        if (model.y < groundY) { model.y = groundY; verticalSpeed = 0f; }
-
-        // Colisión AABB simplificado con SoA
-        for (int i = 0; i < obstacles.count; i++)
+        public void UpdateController(float deltaTime)
         {
-            float ox = obstacles.posX[i];
-            float oy = obstacles.posY[i];
-            float ow = obstacles.widths[i];
-            // AABB check: player rect vs obstacle rect
-            if (RectOverlap(model.x - model.width / 2, model.y, model.width, model.height,
-                            ox - ow / 2, oy, ow, 1f))
+            if (model == null || !model.IsAlive) return;
+
+            float horizontalInput = Input.GetAxis("Horizontal");
+
+            if (Input.GetButtonDown("Jump"))
             {
-                model.isAlive = false;
-                GameEvents.OnPlayerDied?.Invoke();
-                break;
+                model.Jump();
+                view.PlayJump();
             }
-        }
-    }
 
-    bool RectOverlap(float ax, float ay, float aw, float ah, float bx, float by, float bw, float bh)
-    {
-        return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
+            model.Move(horizontalInput);
+            view.UpdatePosition(model.Velocity * deltaTime);
+        }
+
+        public void Die()
+        {
+            model.Die();
+            view.PlayDeath();
+        }
     }
 }

@@ -1,3 +1,6 @@
+using RunnerGame.MVC.Controller;
+using RunnerGame.MVC.Model;
+using RunnerGame.MVC.View;
 using UnityEngine;
 
 public class GameBootstrapper : MonoBehaviour
@@ -16,16 +19,20 @@ public class GameBootstrapper : MonoBehaviour
         var spawnStrategy = new DifficultyScalingStrategy();
         gameController = new GameController(config, spawnStrategy, worldLeftX);
 
+        // Busca el PlayerController en la escena
+        playerController = FindObjectOfType<PlayerController>();
+        PlayerView playerView = FindObjectOfType<PlayerView>();
+
         var playerModel = new PlayerModel();
-        playerController = new PlayerController(playerModel);
-        // Pasar referencias a views (por ejemplo) o registrar servicios disponibles
-        // Por ejemplo, HUDView puede obtener GameController via un setter o evento.
+
+        // Inicializamos correctamente MVC
+        playerController.Initialize(playerModel, playerView);
     }
 
     void Update()
     {
         float dt = Time.deltaTime;
         gameController.Update(dt);
-        playerController.Update(dt, gameController.GetObstacleStore());
+        playerController.UpdateController(dt);
     }
 }
