@@ -1,14 +1,12 @@
 using UnityEngine;
 
-public enum PowerUpType { Shield, SlowTime, DoublePoints, DoubleJump }
-
-[CreateAssetMenu(menuName = "Runner/PowerUpData")]
-public class PowerUpData : ScriptableObject
+[CreateAssetMenu(menuName = "Runner/AudioLibrary")]
+public class AudioLibrary : ScriptableObject
 {
-    public string id;
-    public PowerUpType type;
-    public GameObject prefab;
-    public float duration; // seconds
-    public AudioClip pickupSound;
+    public AudioClip jump;
+    public AudioClip death;
+    public AudioClip hurt;
+    public AudioClip pickupLife;
+    public AudioClip pickupPowerup;
+    public AudioClip music;
 }
-s
