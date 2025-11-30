@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class UIController : MonoBehaviour
 {
@@ -102,7 +103,7 @@ public class UIController : MonoBehaviour
         countdownPanel.GetComponentInChildren<TextMeshProUGUI>().text = "GO!";
         yield return new WaitForSeconds(0.5f);
         countdownPanel.SetActive(false);
-
+        SceneManager.LoadScene("Game");
         // start game
         hudPanel.SetActive(true);
         GameInstaller.Instance.GameModel.IsRunning = true;
@@ -117,6 +118,7 @@ public class UIController : MonoBehaviour
         loadingPanel.SetActive(false);
         hudPanel.SetActive(false);
         gameOverPanel.SetActive(false);
+        countdownPanel.SetActive(false );
 
         // load scores
         var list = _save.LoadHighScores(10);

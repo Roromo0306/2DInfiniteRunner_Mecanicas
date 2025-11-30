@@ -1,33 +1,131 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+
+#if ENABLE_INPUT_SYSTEM && UNITY_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
+    [Header("Movimiento")]
     public float jumpForce = 7f;
+    public LayerMask groundLayer;
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.12f;
+
+    [Header("Audio")]
     public AudioClip jumpClip;
-    private Rigidbody2D _rb;
+
+    // Estados/modelos (si GameInstaller llama Initialize, se usan; si no, se sigue funcionando)
     private PlayerModel _model;
     private GameModel _game;
-    private bool _grounded = true;
+
+    // Internos
+    private Rigidbody2D _rb;
+    private bool _grounded = false;
     private int _jumpCount = 0;
+    private bool _initialized = false;
 
     void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
+
+        // si no asignaste groundCheck en inspector, lo intentamos crear en runtime
+        if (groundCheck == null)
+        {
+            var go = new GameObject("GroundCheck");
+            go.transform.SetParent(transform);
+            go.transform.localPosition = new Vector3(0f, -0.5f, 0f);
+            groundCheck = go.transform;
+        }
+
+        // No asumimos que Initialize se llamó; intentamos obtener modelos si GameInstaller ya existe.
+        TryAutoInitialize();
+    }
+
+    void TryAutoInitialize()
+    {
+        if (_initialized) return;
+        if (GameInstaller.Instance != null)
+        {
+            _model = GameInstaller.Instance.PlayerModel;
+            _game = GameInstaller.Instance.GameModel;
+            _initialized = true;
+        }
     }
 
     public void Initialize(PlayerModel model, GameModel game)
     {
         _model = model;
         _game = game;
+        _initialized = true;
     }
 
     void Update()
     {
-        if (!_game.IsRunning) return;
+        // siempre intentar inicializar si todavía no se hizo (por orden de creación de objetos)
+        TryAutoInitialize();
 
-        // salto con espacio / touch / click
+        // Evitar que la UI capture la tecla si hay algo seleccionado
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+        {
+            // NO salimos aquí porque queremos aceptar clicks/taps incluso si hay UI, 
+            // pero quitamos el foco para que teclas no queden "enganchadas"
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        // Si tienes GameModel y quieres bloquear input hasta que GameModel.IsRunning==true, descomenta:
+        // if (_game != null && !_game.IsRunning) return;
+
+        // Comprobación de grounded mediante OverlapCircle (más fiable que confiar sólo en colisiones)
+        _grounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+        if (_grounded) _jumpCount = 0;
+
+        // Leer input robustamente (soporte antiguo + nuevo Input System si está presente)
+        bool pressed = false;
+
+        // 1) Input antiguo
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
+            pressed = true;
+
+        // 2) Flecha arriba y W (opcional)
+        if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W))
+            pressed = true;
+
+        // 3) Touch (en mobile)
+        if (Input.touchCount > 0)
+        {
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                if (Input.GetTouch(i).phase == TouchPhase.Began) { pressed = true; break; }
+            }
+        }
+
+        // 4) Nuevo Input System (si está activo)
+#if ENABLE_INPUT_SYSTEM && UNITY_INPUT_SYSTEM
+        if (!pressed && Keyboard.current != null)
+        {
+            if (Keyboard.current.spaceKey.wasPressedThisFrame ||
+                Keyboard.current.upArrowKey.wasPressedThisFrame ||
+                Keyboard.current.wKey.wasPressedThisFrame)
+            {
+                pressed = true;
+            }
+        }
+
+        // también toque con Input System (touchscreen)
+        if (!pressed && UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+        {
+            // comprobar si hay un toque que empezó este frame
+            foreach (var t in UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches)
+            {
+                if (t.phase == UnityEngine.InputSystem.TouchPhase.Began) { pressed = true; break; }
+            }
+        }
+#endif
+
+        if (pressed)
         {
             TryJump();
         }
@@ -35,79 +133,55 @@ public class PlayerController : MonoBehaviour
 
     void TryJump()
     {
+        // Si hay modelo y quieres respetar vidas/estado, puedes comprobarlo aquí.
+        // Por ejemplo: if (_model != null && _model.Lives <= 0) return;
+
+        // doble salto si está permitido
+        bool canDoubleJump = _model != null && _model.CanDoubleJump;
+
         if (_grounded)
         {
-            Jump();
+            DoJump();
             _jumpCount = 1;
         }
-        else if (_model != null && _model.CanDoubleJump && _jumpCount < 2)
+        else if (canDoubleJump && _jumpCount < 2)
         {
-            Jump();
+            DoJump();
             _jumpCount++;
         }
     }
 
-    void Jump()
+    void DoJump()
     {
+        // reset vertical velocidad y aplicar impulso
         _rb.velocity = new Vector2(_rb.velocity.x, 0f);
         _rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-        var audio = GameContainer.Resolve<IAudioService>();
-        audio.PlayOneShot(jumpClip);
-        GameContainer.Resolve<IEventBus>().Publish(new PlayerJumpedEvent());
-    }
 
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (collision.collider.CompareTag("Ground"))
+        // Sonido
+        if (jumpClip != null)
         {
-            _grounded = true;
-            _jumpCount = 0;
-        }
-        else if (collision.collider.CompareTag("Obstacle"))
-        {
-            HandleHit();
+            var audio = TryResolveAudioService();
+            if (audio != null) audio.PlayOneShot(jumpClip);
+            else AudioSource.PlayClipAtPoint(jumpClip, transform.position);
         }
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
+    IAudioService TryResolveAudioService()
     {
-        // Colliders fuera de pantalla marcados con tag "DeathZone"
-        if (other.CompareTag("DeathZone"))
+        try
         {
-            // muerte instantánea
-            _model.LoseLife();
-            GameContainer.Resolve<IEventBus>().Publish(new PlayerHurtEvent { remainingLives = _model.Lives });
-            if (_model.Lives <= 0)
-            {
-                GameOver();
-            }
-            else
-            {
-                var audio = GameContainer.Resolve<IAudioService>();
-                audio.PlayOneShot(GameContainer.Resolve<AudioLibrary>().hurt);
-            }
+            if (GameContainer.IsRegistered<IAudioService>())
+                return GameContainer.Resolve<IAudioService>();
         }
+        catch { }
+        return null;
     }
 
-    void HandleHit()
+    // Opcional: visualizar el groundCheck en el Editor
+    void OnDrawGizmosSelected()
     {
-        _model.LoseLife();
-        GameContainer.Resolve<IEventBus>().Publish(new PlayerHurtEvent { remainingLives = _model.Lives });
-        var audio = GameContainer.Resolve<IAudioService>();
-        if (_model.Lives <= 0)
-        {
-            audio.PlayOneShot(GameContainer.Resolve<AudioLibrary>().death);
-            GameOver();
-        }
-        else
-        {
-            audio.PlayOneShot(GameContainer.Resolve<AudioLibrary>().hurt);
-        }
-    }
-
-    void GameOver()
-    {
-        _game.IsRunning = false;
-        GameContainer.Resolve<IEventBus>().Publish(new GameOverEvent { finalScore = _game.Score });
+        if (groundCheck == null) return;
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }
 }
