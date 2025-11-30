@@ -1,4 +1,4 @@
-/*using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class ObstacleSpawner : MonoBehaviour
@@ -39,4 +39,4 @@ public class ObstacleSpawner : MonoBehaviour
         if (mover != null) mover.Speed = config.baseSpeed;
         // mover.destroyX = config.destroyX; // si expones desde Mover
     }
-}*/
+}

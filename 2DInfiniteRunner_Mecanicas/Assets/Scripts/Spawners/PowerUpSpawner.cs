@@ -1,11 +1,9 @@
-/*using UnityEngine;
-using System.Collections;
+using UnityEngine;
 
-public class ObstacleSpawner : MonoBehaviour
+public class PowerupSpawner : MonoBehaviour
 {
-    public ObstacleSet set; // ScriptableObject con 3 prefabs
+    public PowerUpData[] powerups;
     public GameConfig config;
-
     private float _timer;
 
     void Start()
@@ -18,25 +16,23 @@ public class ObstacleSpawner : MonoBehaviour
         _timer -= Time.deltaTime;
         if (_timer <= 0f)
         {
-            Spawn();
+            SpawnRandom();
             ResetTimer();
         }
     }
 
-    void ResetTimer()
-    {
-        _timer = Random.Range(config.obstacleMinSpawn, config.obstacleMaxSpawn);
-    }
+    void ResetTimer() => _timer = config != null ? config.powerupSpawnInterval : 10f;
 
-    void Spawn()
+    void SpawnRandom()
     {
-        if (set == null || set.obstacles == null || set.obstacles.Length == 0) return;
-        var idx = Random.Range(0, set.obstacles.Length);
-        var prefab = set.obstacles[idx];
-        var pos = new Vector3(config.spawnX, transform.position.y, 0);
-        var go = Instantiate(prefab, pos, Quaternion.identity);
-        var mover = go.GetComponent<Mover>();
-        if (mover != null) mover.Speed = config.baseSpeed;
-        // mover.destroyX = config.destroyX; // si expones desde Mover
+        if (powerups == null || powerups.Length == 0) return;
+        var idx = Random.Range(0, powerups.Length);
+        var data = powerups[idx];
+        if (data == null || data.prefab == null) return;
+
+        var pos = new Vector3(transform.position.x, transform.position.y + Random.Range(-1f, 2f), 0f);
+        var go = Instantiate(data.prefab, pos, Quaternion.identity);
+        var powerComp = go.GetComponent<PowerupPickup>();
+        if (powerComp != null) powerComp.Setup(data);
     }
-}*/
+}
